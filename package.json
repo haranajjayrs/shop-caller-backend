@@ -1,0 +1,32 @@
+{
+  "name": "shop-caller-backend",
+  "version": "2.0.0",
+  "description": "Multi-company sales calling backend: Firebase Auth + AWS DynamoDB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "create-tables": "node scripts/createTables.js",
+    "make-template": "node scripts/makeTemplate.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "firebase-admin": "^12.5.0",
+    "helmet": "^7.1.0",
+    "multer": "^2.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "dynalite": "^3.2.2"
+  }
+}
