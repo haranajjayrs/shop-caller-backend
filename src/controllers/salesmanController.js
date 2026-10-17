@@ -2,7 +2,11 @@ const authProvider = require("../services/authProvider");
 const userService = require("../services/userService");
 const shopService = require("../services/shopService");
 const { clearProfileCache } = require("../middleware/auth");
-const { normalizeMobile, defaultSalesmanPassword, salesmanEmail } = require("../utils/phone");
+const {
+  normalizeMobile,
+  defaultSalesmanPassword,
+  salesmanEmail,
+} = require("../utils/phone");
 const { badRequest, conflict, notFound } = require("../utils/httpError");
 const logger = require("../utils/logger");
 
@@ -17,11 +21,18 @@ const publicView = (u, shopCount) => ({
 
 /** Excel upload maps shops by salesman NAME, so names must be unique per company. */
 async function assertNameFree(companyId, name, exceptUid) {
-  const all = await userService.listCompanyUsers(companyId, { role: "salesman" });
+  const all = await userService.listCompanyUsers(companyId, {
+    role: "salesman",
+  });
   const taken = all.some(
-    (u) => u.uid !== exceptUid && String(u.name).trim().toLowerCase() === name.toLowerCase(),
+    (u) =>
+      u.uid !== exceptUid &&
+      String(u.name).trim().toLowerCase() === name.toLowerCase(),
   );
-  if (taken) throw conflict(`A salesman named "${name}" already exists. Use a different name (e.g. add initial).`);
+  if (taken)
+    throw conflict(
+      `A salesman named "${name}" already exists. Use a different name (e.g. add initial).`,
+    );
 }
 
 async function loadOwnSalesman(req) {
@@ -39,8 +50,12 @@ async function list(req, res) {
     shopService.listCompanyShops(req.user.companyId),
   ]);
   const counts = new Map();
-  for (const s of shops) counts.set(s.salesmanUid, (counts.get(s.salesmanUid) || 0) + 1);
-  res.json({ success: true, data: salesmen.map((s) => publicView(s, counts.get(s.uid) || 0)) });
+  for (const s of shops)
+    counts.set(s.salesmanUid, (counts.get(s.salesmanUid) || 0) + 1);
+  res.json({
+    success: true,
+    data: salesmen.map((s) => publicView(s, counts.get(s.uid) || 0)),
+  });
 }
 
 /**
@@ -83,11 +98,17 @@ async function create(req, res) {
     });
     res.status(201).json({
       success: true,
-      data: { salesman: publicView(user, 0), credentials: { loginId: mobile, password } },
+      data: {
+        salesman: publicView(user, 0),
+        credentials: { loginId: mobile, password },
+      },
     });
   } catch (err) {
     await authProvider.deleteUser(uid).catch((e) =>
-      logger.error("Rollback of Firebase user failed", { uid, error: e.message }),
+      logger.error("Rollback of Firebase user failed", {
+        uid,
+        error: e.message,
+      }),
     );
     throw err;
   }
@@ -110,7 +131,8 @@ async function update(req, res) {
     ...(fields.name && { displayName: fields.name }),
     ...(fields.active !== undefined && { disabled: !fields.active }),
   });
-  if (fields.active === false) await authProvider.revokeTokens(salesman.uid).catch(() => {});
+  if (fields.active === false)
+    await authProvider.revokeTokens(salesman.uid).catch(() => {});
 
   const updated = await userService.updateUser(salesman.uid, fields);
   clearProfileCache(salesman.uid);
@@ -135,4 +157,39 @@ async function resetPassword(req, res) {
   res.json({ success: true, data: { loginId: salesman.mobile, password } });
 }
 
-module.exports = { list, create, update, resetPassword };
+/** DELETE /api/salesmen/:uid */
+async function remove(req, res) {
+  const salesman = await loadOwnSalesman(req);
+
+  // Disable login first so the account cannot continue to be used.
+  await authProvider.updateUser(salesman.uid, { disabled: true });
+  await authProvider.revokeTokens(salesman.uid).catch(() => {});
+
+  // Delete the DynamoDB profile, verifying company and role.
+  await userService.deleteUserRecord(salesman.uid, req.user.companyId);
+
+  clearProfileCache(salesman.uid);
+
+  // Delete Firebase Auth account after the profile is removed.
+  try {
+    await authProvider.deleteUser(salesman.uid);
+  } catch (err) {
+    logger.error("Firebase deletion failed after DynamoDB profile removal", {
+      uid: salesman.uid,
+      error: err.message,
+    });
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Salesman profile was removed, but Firebase account deletion failed. Please retry cleanup.",
+    });
+  }
+
+  res.json({
+    success: true,
+    message: "Salesman deleted successfully",
+  });
+}
+
+module.exports = { list, create, update, resetPassword, remove };

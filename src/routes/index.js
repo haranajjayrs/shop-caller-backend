@@ -22,7 +22,10 @@ const registerLimiter = rateLimit({
   limit: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { success: false, message: "Too many registrations from this network. Try again later." },
+  message: {
+    success: false,
+    message: "Too many registrations from this network. Try again later.",
+  },
 });
 
 const master = requireRole("master");
@@ -42,6 +45,7 @@ router.get("/salesmen", master, h(salesmen.list));
 router.post("/salesmen", master, h(salesmen.create));
 router.patch("/salesmen/:uid", master, h(salesmen.update));
 router.post("/salesmen/:uid/reset-password", master, h(salesmen.resetPassword));
+router.delete("/salesmen/:uid", master, h(salesmen.remove));
 
 // ---- Shops ----
 router.get("/shops", h(shops.list));

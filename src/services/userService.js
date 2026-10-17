@@ -1,4 +1,9 @@
-const { GetCommand, PutCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const {
+  GetCommand,
+  PutCommand,
+  UpdateCommand,
+  DeleteCommand,
+} = require("@aws-sdk/lib-dynamodb");
 const { docClient } = require("../config/dynamoClient");
 const TABLES = require("../config/tables");
 const { queryAll } = require("../utils/dynamo");
@@ -10,7 +15,9 @@ const { queryAll } = require("../utils/dynamo");
  */
 
 async function getUser(uid) {
-  const res = await docClient.send(new GetCommand({ TableName: TABLES.USERS, Key: { uid } }));
+  const res = await docClient.send(
+    new GetCommand({ TableName: TABLES.USERS, Key: { uid } }),
+  );
   return res.Item || null;
 }
 
@@ -60,4 +67,31 @@ async function updateUser(uid, fields) {
   return res.Attributes;
 }
 
-module.exports = { getUser, putUser, listCompanyUsers, updateUser };
+async function deleteUserRecord(uid, companyId) {
+  const res = await docClient.send(
+    new DeleteCommand({
+      TableName: TABLES.USERS,
+      Key: { uid },
+      ConditionExpression:
+        "attribute_exists(uid) AND companyId = :companyId AND #role = :role",
+      ExpressionAttributeNames: {
+        "#role": "role",
+      },
+      ExpressionAttributeValues: {
+        ":companyId": companyId,
+        ":role": "salesman",
+      },
+      ReturnValues: "ALL_OLD",
+    }),
+  );
+
+  return res.Attributes || null;
+}
+
+module.exports = {
+  getUser,
+  putUser,
+  listCompanyUsers,
+  updateUser,
+  deleteUserRecord,
+};
