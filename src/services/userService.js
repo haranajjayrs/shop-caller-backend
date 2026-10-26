@@ -2,7 +2,6 @@ const {
   GetCommand,
   PutCommand,
   UpdateCommand,
-  DeleteCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { docClient } = require("../config/dynamoClient");
 const TABLES = require("../config/tables");
@@ -67,31 +66,9 @@ async function updateUser(uid, fields) {
   return res.Attributes;
 }
 
-async function deleteUserRecord(uid, companyId) {
-  const res = await docClient.send(
-    new DeleteCommand({
-      TableName: TABLES.USERS,
-      Key: { uid },
-      ConditionExpression:
-        "attribute_exists(uid) AND companyId = :companyId AND #role = :role",
-      ExpressionAttributeNames: {
-        "#role": "role",
-      },
-      ExpressionAttributeValues: {
-        ":companyId": companyId,
-        ":role": "salesman",
-      },
-      ReturnValues: "ALL_OLD",
-    }),
-  );
-
-  return res.Attributes || null;
-}
-
 module.exports = {
   getUser,
   putUser,
   listCompanyUsers,
   updateUser,
-  deleteUserRecord,
 };

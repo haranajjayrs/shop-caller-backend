@@ -18,13 +18,18 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function registerCompany(req, res) {
   const { companyName, ownerName, email, mobile, password } = req.body || {};
 
-  if (!companyName || !String(companyName).trim()) throw badRequest("Company name is required");
-  if (!ownerName || !String(ownerName).trim()) throw badRequest("Your name is required");
-  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!companyName || !String(companyName).trim())
+    throw badRequest("Company name is required");
+  if (!ownerName || !String(ownerName).trim())
+    throw badRequest("Your name is required");
+  const cleanEmail = String(email || "")
+    .trim()
+    .toLowerCase();
   if (!EMAIL_RE.test(cleanEmail)) throw badRequest("Enter a valid email");
   const cleanMobile = normalizeMobile(mobile);
   if (!cleanMobile) throw badRequest("Enter a valid 10-digit mobile number");
-  if (!password || String(password).length < 6) throw badRequest("Password must be at least 6 characters");
+  if (!password || String(password).length < 6)
+    throw badRequest("Password must be at least 6 characters");
 
   let uid;
   try {
@@ -34,8 +39,10 @@ async function registerCompany(req, res) {
       displayName: String(ownerName).trim(),
     }));
   } catch (err) {
-    if (err.code === "auth/email-already-exists") throw conflict("This email is already registered. Please log in.");
-    if (err.code === "auth/invalid-password") throw badRequest("Password must be at least 6 characters");
+    if (err.code === "auth/email-already-exists")
+      throw conflict("This email is already registered. Please log in.");
+    if (err.code === "auth/invalid-password")
+      throw badRequest("Password must be at least 6 characters");
     throw err;
   }
 
@@ -61,7 +68,10 @@ async function registerCompany(req, res) {
   } catch (err) {
     // Roll back the Firebase account so the email can be used again.
     await authProvider.deleteUser(uid).catch((e) =>
-      logger.error("Rollback of Firebase user failed", { uid, error: e.message }),
+      logger.error("Rollback of Firebase user failed", {
+        uid,
+        error: e.message,
+      }),
     );
     throw err;
   }
@@ -73,4 +83,33 @@ async function me(req, res) {
   res.json({ success: true, data: { user: req.user, company } });
 }
 
-module.exports = { registerCompany, me };
+/** POST /api/auth/change-password */
+async function changePassword(req, res) {
+  const password = String(req.body?.password || "");
+
+  if (password.length < 8) {
+    throw badRequest("Password must be at least 8 characters");
+  }
+
+  if (req.user.role !== "salesman") {
+    throw badRequest("This action is only for salesmen");
+  }
+
+  await authProvider.updateUser(req.user.uid, {
+    password,
+  });
+
+  await userService.updateUser(req.user.uid, {
+    mustChangePassword: false,
+  });
+
+  const { clearProfileCache } = require("../middleware/auth");
+  clearProfileCache(req.user.uid);
+
+  res.json({
+    success: true,
+    message: "Password changed successfully",
+  });
+}
+
+module.exports = { registerCompany, me, changePassword };

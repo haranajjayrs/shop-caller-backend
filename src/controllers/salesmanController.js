@@ -59,8 +59,8 @@ async function list(req, res) {
 }
 
 /**
- * POST /api/salesmen  { name, mobile }
- * Password is generated automatically: last 4 digits of mobile + "@salesman"
+ * POST /api/salesmen { name, mobile }
+ * Password is generated randomly.
  */
 async function create(req, res) {
   const name = String(req.body?.name || "").trim();
@@ -69,7 +69,7 @@ async function create(req, res) {
   if (!mobile) throw badRequest("Enter a valid 10-digit mobile number");
   await assertNameFree(req.user.companyId, name);
 
-  const password = defaultSalesmanPassword(mobile);
+  const password = defaultSalesmanPassword();
   let uid;
   try {
     ({ uid } = await authProvider.createUser({
@@ -95,6 +95,7 @@ async function create(req, res) {
       active: true,
       createdBy: req.user.uid,
       createdAt: new Date().toISOString(),
+      mustChangePassword: true,
     });
     res.status(201).json({
       success: true,
@@ -148,48 +149,17 @@ async function update(req, res) {
   res.json({ success: true, data: publicView(updated) });
 }
 
-/** POST /api/salesmen/:uid/reset-password — back to last4@salesman */
+/** POST /api/salesmen/:uid/reset-password — generates a random password */
 async function resetPassword(req, res) {
   const salesman = await loadOwnSalesman(req);
-  const password = defaultSalesmanPassword(salesman.mobile);
+  const password = defaultSalesmanPassword();
   await authProvider.updateUser(salesman.uid, { password });
   await authProvider.revokeTokens(salesman.uid).catch(() => {});
+  await userService.updateUser(salesman.uid, {
+    mustChangePassword: true,
+  });
+  clearProfileCache(salesman.uid);
   res.json({ success: true, data: { loginId: salesman.mobile, password } });
 }
 
-/** DELETE /api/salesmen/:uid */
-async function remove(req, res) {
-  const salesman = await loadOwnSalesman(req);
-
-  // Disable login first so the account cannot continue to be used.
-  await authProvider.updateUser(salesman.uid, { disabled: true });
-  await authProvider.revokeTokens(salesman.uid).catch(() => {});
-
-  // Delete the DynamoDB profile, verifying company and role.
-  await userService.deleteUserRecord(salesman.uid, req.user.companyId);
-
-  clearProfileCache(salesman.uid);
-
-  // Delete Firebase Auth account after the profile is removed.
-  try {
-    await authProvider.deleteUser(salesman.uid);
-  } catch (err) {
-    logger.error("Firebase deletion failed after DynamoDB profile removal", {
-      uid: salesman.uid,
-      error: err.message,
-    });
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Salesman profile was removed, but Firebase account deletion failed. Please retry cleanup.",
-    });
-  }
-
-  res.json({
-    success: true,
-    message: "Salesman deleted successfully",
-  });
-}
-
-module.exports = { list, create, update, resetPassword, remove };
+module.exports = { list, create, update, resetPassword };

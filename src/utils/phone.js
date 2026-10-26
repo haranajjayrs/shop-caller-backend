@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 /**
  * Indian mobile number -> 10 digits. Accepts "+91 98765 43210",
  * "919876543210", "09876543210", "9876543210". Returns null if it isn't a
@@ -27,8 +28,9 @@ function normalizeShopPhone(input) {
 }
 
 /** Default salesman password: last four digits of mobile + "@salesman". */
-function defaultSalesmanPassword(mobile10) {
-  return `${mobile10.slice(-4)}@salesman`;
+/** Generate a random temporary password for a salesman. */
+function defaultSalesmanPassword() {
+  return crypto.randomBytes(12).toString("base64url");
 }
 
 function salesmanEmail(mobile10) {

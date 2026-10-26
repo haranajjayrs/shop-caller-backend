@@ -36,16 +36,32 @@ const router = express.Router();
 // ---- Auth ----
 router.post("/auth/register-company", registerLimiter, h(auth.registerCompany));
 router.get("/auth/me", requireAuth, h(auth.me));
+router.post("/auth/change-password", requireAuth, h(auth.changePassword));
 
 // Everything below needs a logged-in user
 router.use(requireAuth);
+
+router.use((req, res, next) => {
+  if (
+    req.user?.role === "salesman" &&
+    req.user?.mustChangePassword === true &&
+    req.path !== "/auth/change-password"
+  ) {
+    return res.status(403).json({
+      success: false,
+      message: "Please change your password before continuing.",
+      code: "PASSWORD_CHANGE_REQUIRED",
+    });
+  }
+
+  next();
+});
 
 // ---- Salesmen (master only) ----
 router.get("/salesmen", master, h(salesmen.list));
 router.post("/salesmen", master, h(salesmen.create));
 router.patch("/salesmen/:uid", master, h(salesmen.update));
 router.post("/salesmen/:uid/reset-password", master, h(salesmen.resetPassword));
-router.delete("/salesmen/:uid", master, h(salesmen.remove));
 
 // ---- Shops ----
 router.get("/shops", h(shops.list));
